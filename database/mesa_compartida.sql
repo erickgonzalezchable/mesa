@@ -16,7 +16,7 @@ CREATE TABLE IF NOT EXISTS voluntarios (
     usuario_id INTEGER NOT NULL UNIQUE REFERENCES usuarios(id),
     vehiculo TEXT NOT NULL,
     placas TEXT NOT NULL UNIQUE,
-    capacidad_kg INTEGER NOT NULL CHECK (capacidad_kg IN (50,150)),
+    capacidad_kg INTEGER NOT NULL CHECK (capacidad_kg > 0),
     refrigerado INTEGER NOT NULL DEFAULT 0 CHECK (refrigerado IN (0,1)),
     estado TEXT NOT NULL DEFAULT 'ACTIVO' CHECK (estado IN ('ACTIVO','SUSPENDIDO','BAJA')),
     codigo_qr TEXT NOT NULL UNIQUE

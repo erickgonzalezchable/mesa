@@ -305,11 +305,29 @@ class VistaAdmin(Vista):
 
     def nuevo_voluntario(self):
         def extra(win, v, n):
-            v["cap"], v["frio"] = tk.StringVar(value=str(cfg.CAPACIDADES_KG[0])), tk.IntVar()
-            ttk.Label(win, text="Capacidad (kg)").grid(row=n, column=0, sticky="w", padx=8)
-            ttk.Combobox(win, textvariable=v["cap"], values=list(cfg.CAPACIDADES_KG), state="readonly",
-                         width=8).grid(row=n, column=1, sticky="w", padx=8)
-            ttk.Checkbutton(win, text="Vehículo con refrigeración", variable=v["frio"]).grid(row=n + 1, column=1, sticky="w", padx=8)
+            tipos = list(cfg.VEHICULOS_INFO.keys())
+            v["tipo_v"] = tk.StringVar(value="Automóvil / Carro")
+            v["cap"] = tk.StringVar(value="130")
+            v["frio"] = tk.IntVar()
+
+            ttk.Label(win, text="Tipo de vehículo").grid(row=n, column=0, sticky="w", padx=8, pady=3)
+            cb_t = ttk.Combobox(win, textvariable=v["tipo_v"], values=tipos, state="readonly", width=28)
+            cb_t.grid(row=n, column=1, padx=8, pady=3)
+
+            ttk.Label(win, text="Capacidad en kg").grid(row=n + 1, column=0, sticky="w", padx=8, pady=3)
+            ttk.Entry(win, textvariable=v["cap"], width=10).grid(row=n + 1, column=1, sticky="w", padx=8, pady=3)
+
+            lbl_hint = ttk.Label(win, text="Carro: aprox. 130 kg (escribe lo que soporta)", foreground="#666666", font=("TkDefaultFont", 9, "italic"))
+            lbl_hint.grid(row=n + 2, column=1, sticky="w", padx=8)
+
+            def on_t_change(_e):
+                t = v["tipo_v"].get()
+                info = cfg.VEHICULOS_INFO.get(t, {"default": 50, "desc": "Escribe la capacidad en kg"})
+                v["cap"].set(str(info["default"]))
+                lbl_hint.config(text=info["desc"])
+            cb_t.bind("<<ComboboxSelected>>", on_t_change)
+
+            ttk.Checkbutton(win, text="Vehículo con refrigeración (o hielera térmica)", variable=v["frio"]).grid(row=n + 3, column=1, sticky="w", padx=8, pady=4)
 
         def guardar(x):
             lg.registrar_voluntario(x["usuario"], x["nombre"], x["telefono"], x["password"], x["vehiculo"],
@@ -318,7 +336,7 @@ class VistaAdmin(Vista):
         formulario(self, "Registrar voluntario",
                    [("Usuario", "usuario", False), ("Nombre completo", "nombre", False),
                     ("Teléfono (10 dígitos)", "telefono", False), ("Contraseña", "password", True),
-                    ("Vehículo", "vehiculo", False), ("Placas", "placas", False)], "Guardar", guardar, extra)
+                    ("Modelo/Descripción del vehículo", "vehiculo", False), ("Placas o Identificador", "placas", False)], "Guardar", guardar, extra)
 
     def refrescar(self):
         ds = lg.todas_las_donaciones()

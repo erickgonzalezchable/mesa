@@ -81,7 +81,30 @@ def init_db():
     try:
         conn.executescript(cfg.SCHEMA_PATH.read_text(encoding="utf-8"))
         version = conn.execute("PRAGMA user_version").fetchone()[0]
-        # Aquí se agregarían migraciones: if version < 2: conn.execute("ALTER TABLE ...")
+        if version < 2:
+            # Migración v2: permitir cualquier capacidad > 0 (motos 10kg, autos 130kg, etc.)
+            conn.execute("PRAGMA foreign_keys = OFF")
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS voluntarios_v2 (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    usuario_id INTEGER NOT NULL UNIQUE REFERENCES usuarios(id),
+                    vehiculo TEXT NOT NULL,
+                    placas TEXT NOT NULL UNIQUE,
+                    capacidad_kg INTEGER NOT NULL CHECK (capacidad_kg > 0),
+                    refrigerado INTEGER NOT NULL DEFAULT 0 CHECK (refrigerado IN (0,1)),
+                    estado TEXT NOT NULL DEFAULT 'ACTIVO' CHECK (estado IN ('ACTIVO','SUSPENDIDO','BAJA')),
+                    codigo_qr TEXT NOT NULL UNIQUE
+                )
+            """)
+            conn.execute("""
+                INSERT OR IGNORE INTO voluntarios_v2 (id, usuario_id, vehiculo, placas, capacidad_kg, refrigerado, estado, codigo_qr)
+                SELECT id, usuario_id, vehiculo, placas, capacidad_kg, refrigerado, estado, codigo_qr FROM voluntarios
+            """)
+            conn.execute("DROP TABLE IF EXISTS voluntarios")
+            conn.execute("ALTER TABLE voluntarios_v2 RENAME TO voluntarios")
+            conn.execute("CREATE INDEX IF NOT EXISTS ix_don_vol ON donaciones(voluntario_id)")
+            conn.execute("PRAGMA foreign_keys = ON")
+            conn.execute("PRAGMA user_version = 2")
         if version < cfg.SCHEMA_VERSION:
             conn.execute(f"PRAGMA user_version = {cfg.SCHEMA_VERSION}")
         hay = conn.execute("SELECT COUNT(*) FROM usuarios").fetchone()[0]

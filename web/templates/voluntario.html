@@ -1,1 +1,96 @@
-{% extends 'base.html' %}{% block body %}<section class="card narrow"><h1>Alta de voluntario</h1><form method="post">{% for name,label in [('usuario','Usuario'),('nombre','Nombre'),('telefono','Teléfono'),('password','Contraseña'),('vehiculo','Vehículo'),('placas','Placas')] %}<label>{{label}}<input name="{{name}}" {% if name!='telefono' %}required{% endif %} {% if name=='password' %}type="password" minlength="6"{% endif %}></label>{% endfor %}<label>Capacidad<select name="capacidad"><option>50</option><option>150</option></select></label><label><input type="checkbox" name="refrigerado"> Refrigeración</label><button>Registrar</button></form></section>{% endblock %}
+{% extends 'base.html' %}
+{% block body %}
+<section class="card narrow">
+  <h1>Alta de Voluntario</h1>
+  <p class="muted">Registra a un voluntario indicando el tipo de vehículo y la capacidad de carga en kilogramos que puede transportar.</p>
+
+  <form method="post">
+    <label>Usuario
+      <input name="usuario" required placeholder="Ej: voluntario_juan" autocomplete="username">
+    </label>
+
+    <label>Nombre completo
+      <input name="nombre" required placeholder="Ej: Juan Pérez Morales">
+    </label>
+
+    <label>Teléfono (10 dígitos)
+      <input name="telefono" inputmode="numeric" pattern="[0-9]{10}" maxlength="10" placeholder="Ej: 9611234567">
+    </label>
+
+    <label>Contraseña (mínimo 6 caracteres)
+      <input type="password" name="password" minlength="6" required placeholder="Contraseña de acceso" autocomplete="new-password">
+    </label>
+
+    <label>Tipo de vehículo
+      <select id="tipo_vehiculo" name="tipo_vehiculo" onchange="actualizarVehiculo()">
+        <option value="Motocicleta" data-max="50" data-sugerido="25">🏍 Motocicleta (caja o parrilla - máx. sugerido 50 kg)</option>
+        <option value="Bicicleta" data-max="20" data-sugerido="10">🚲 Bicicleta (canastilla o mochila - máx. sugerido 20 kg)</option>
+        <option value="Automóvil / Carro" data-max="150" data-sugerido="130" selected>🚗 Automóvil / Carro (alrededor de 130 kg)</option>
+        <option value="Camioneta / SUV" data-max="600" data-sugerido="350">🛻 Camioneta / Pickup (hasta 600 kg)</option>
+        <option value="Camión de carga" data-max="3000" data-sugerido="1000">🚚 Camión de carga (carga pesada)</option>
+        <option value="Otro" data-max="3000" data-sugerido="50">Otro vehículo</option>
+      </select>
+    </label>
+
+    <label>Descripción / Modelo del vehículo
+      <input id="vehiculo" name="vehiculo" required value="Automóvil particular" 
+             placeholder="Ej: Moto Italika FT150 con caja trasera, Nissan Versa cajuela amplia, etc.">
+    </label>
+
+    <label>Capacidad de carga real (en kilogramos)
+      <input id="capacidad" name="capacidad" type="number" min="1" max="150" value="130" required>
+      <small id="capacidad_ayuda" style="color: #64748b; font-size: 12px; display: block; margin-top: 4px;">
+        Para Carro la capacidad recomendada es de alrededor de 130 kg. Escribe cuántos kilos soporta tu vehículo (ej. 80, 100 o 130 kg).
+      </small>
+    </label>
+
+    <label>Placas o Identificador
+      <input name="placas" required placeholder="Ej: CHS-123-A (o 'BICI-01' si no tiene placas)" style="text-transform: uppercase;">
+    </label>
+
+    <label style="display: flex; align-items: center; gap: 8px; font-weight: normal; margin-top: 12px; cursor: pointer;">
+      <input type="checkbox" name="refrigerado" style="width: auto;"> 
+      <span><strong>Vehículo con refrigeración</strong> (o hielera / contenedor térmico para lácteos y carnes)</span>
+    </label>
+
+    <button type="submit" class="btn" style="width: 100%; margin-top: 16px; font-size: 15px; padding: 12px;">
+      Guardar y Dar de Alta Voluntario
+    </button>
+  </form>
+</section>
+
+<script>
+function actualizarVehiculo() {
+  const sel = document.getElementById('tipo_vehiculo');
+  const opt = sel.options[sel.selectedIndex];
+  const max = opt.getAttribute('data-max') || '150';
+  const sug = opt.getAttribute('data-sugerido') || '50';
+  const capInput = document.getElementById('capacidad');
+  const vehiculoInput = document.getElementById('vehiculo');
+  const ayuda = document.getElementById('capacidad_ayuda');
+
+  capInput.max = max;
+  capInput.value = sug;
+
+  if (sel.value === 'Motocicleta') {
+    vehiculoInput.value = 'Motocicleta con caja trasera';
+    ayuda.textContent = 'Para Motocicleta la capacidad máxima recomendada es de 50 kg. Escribe lo que soporta tu moto (ej. 10, 15, 25 o 40 kg).';
+  } else if (sel.value === 'Bicicleta') {
+    vehiculoInput.value = 'Bicicleta con canastilla';
+    ayuda.textContent = 'Para Bicicleta la capacidad sugerida es de hasta 20 kg. Escribe la capacidad de tu canastilla o mochila (ej. 5, 10 o 15 kg).';
+  } else if (sel.value === 'Automóvil / Carro') {
+    vehiculoInput.value = 'Automóvil particular';
+    ayuda.textContent = 'Para Carro la capacidad recomendada es de alrededor de 130 kg. Escribe lo que puede cargar tu cajuela o asientos (ej. 80, 100 o 130 kg).';
+  } else if (sel.value === 'Camioneta / SUV') {
+    vehiculoInput.value = 'Camioneta Pickup';
+    ayuda.textContent = 'Para Camioneta puedes especificar capacidades de 200 a 600 kg según el tamaño de la batea.';
+  } else if (sel.value === 'Camión de carga') {
+    vehiculoInput.value = 'Camión de carga';
+    ayuda.textContent = 'Especifica la capacidad de carga en kg que puede transportar tu camión (ej. 1000, 2000 kg).';
+  } else {
+    vehiculoInput.value = '';
+    ayuda.textContent = 'Escribe la capacidad exacta en kg que puede transportar este vehículo.';
+  }
+}
+</script>
+{% endblock %}

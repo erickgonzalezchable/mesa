@@ -98,6 +98,17 @@ class TestFlujo(Base):
         lg.registrar_voluntario("vol2", "Ana", "", "abcdef", "Auto", "AAA-1", 50, True)
         self.assertEqual(lg.asignar(self.nueva(PAN, 100))["id"], self.vol)
 
+    def test_capacidad_moto_y_carro(self):
+        lg.cambiar_estado_voluntario(self.vol, "SUSPENDIDO")
+        u_moto = lg.registrar_voluntario("volmoto", "Carlos", "", "abcdef", "Moto", "MOT-1", 10, False)
+        u_carro = lg.registrar_voluntario("volcarro", "Pedro", "", "abcdef", "Carro", "CAR-1", 130, False)
+        v_moto_id = lg.voluntario_de_usuario(u_moto)["id"]
+        v_carro_id = lg.voluntario_de_usuario(u_carro)["id"]
+        d8 = self.nueva(PAN, 8)
+        self.assertEqual(lg.asignar(d8)["id"], v_moto_id)
+        d25 = self.nueva(PAN, 25)
+        self.assertEqual(lg.asignar(d25)["id"], v_carro_id)
+
     def test_balanceo_de_carga(self):
         lg.registrar_voluntario("vol2", "Ana", "", "abcdef", "Auto", "AAA-1", 150, True)
         self.assertNotEqual(lg.asignar(self.nueva())["id"], lg.asignar(self.nueva())["id"])

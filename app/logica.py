@@ -51,8 +51,12 @@ def registrar_donante(usuario, nombre, telefono, password):
 
 def registrar_voluntario(usuario, nombre, telefono, password, vehiculo, placas, capacidad, refrigerado):
     _validar_cuenta(usuario, nombre, password)
-    if int(capacidad) not in cfg.CAPACIDADES_KG:
-        raise ReglaError("La capacidad debe ser de 50 o 150 kg.")
+    try:
+        cap = int(capacidad)
+    except (ValueError, TypeError):
+        raise ReglaError("La capacidad debe ser un número entero en kilogramos.")
+    if cap <= 0 or cap > 5000:
+        raise ReglaError("La capacidad de carga debe ser mayor a 0 kg y hasta 5,000 kg.")
     if not vehiculo.strip() or not placas.strip():
         raise ReglaError("Escribe el vehículo y las placas.")
     with db.transaction() as conn:
@@ -61,7 +65,7 @@ def registrar_voluntario(usuario, nombre, telefono, password, vehiculo, placas, 
             (usuario.strip(), nombre.strip(), _telefono_ok(telefono), db.hash_password(password))).lastrowid
         conn.execute(
             "INSERT INTO voluntarios(usuario_id,vehiculo,placas,capacidad_kg,refrigerado,codigo_qr) "
-            "VALUES (?,?,?,?,?,?)", (uid, vehiculo.strip(), placas.strip().upper(), int(capacidad),
+            "VALUES (?,?,?,?,?,?)", (uid, vehiculo.strip(), placas.strip().upper(), cap,
                                      int(bool(refrigerado)), secrets.token_hex(8)))
     return uid
 
@@ -82,8 +86,9 @@ def cotizar(alimento, kg, horas, zona, comedor):
         kg = float(kg)
     except (TypeError, ValueError):
         raise ReglaError("La cantidad debe ser un número (kg).")
-    if not (0 < kg <= max(cfg.CAPACIDADES_KG)):
-        raise ReglaError(f"La cantidad debe estar entre 0 y {max(cfg.CAPACIDADES_KG)} kg por donación. "
+    max_kg = getattr(cfg, "CAPACIDAD_MAXIMA_DONACION", max(cfg.CAPACIDADES_KG))
+    if not (0 < kg <= max_kg):
+        raise ReglaError(f"La cantidad debe estar entre 0 y {max_kg} kg por donación. "
                          "Si es más, registra varias donaciones.")
     if not all([alimento, zona, comedor]):
         raise ReglaError("Completa todos los datos.")
