@@ -104,14 +104,16 @@ class VistaDonante(Vista):
             cb.bind("<<ComboboxSelected>>", lambda _e: self.cotizar(True))
         ttk.Label(f, text="Cantidad (kg)").grid(row=2, column=0, sticky="w", padx=4)
         ttk.Entry(f, textvariable=self.v["kg"], width=10).grid(row=2, column=1, sticky="w", padx=4)
-        ttk.Label(f, text="Dirección / referencias").grid(row=3, column=0, sticky="w", padx=4, pady=3)
+        ttk.Label(f, text="Dirección exacta de recolección").grid(row=3, column=0, sticky="w", padx=4, pady=3)
         ttk.Entry(f, textvariable=self.v["dir"], width=60).grid(row=3, column=1, columnspan=3, sticky="we", padx=4)
-        ttk.Label(f, text="Observaciones").grid(row=4, column=0, sticky="w", padx=4)
-        ttk.Entry(f, textvariable=self.v["obs"], width=60).grid(row=4, column=1, columnspan=3, sticky="we", padx=4)
+        ttk.Label(f, text="Ej: Av. Central Pte. #1234, entre 11 y 12 Pte, Col. Centro, Restaurante La Milpa",
+                  foreground="#666666", font=("TkDefaultFont", 9, "italic")).grid(row=4, column=1, columnspan=3, sticky="w", padx=4)
+        ttk.Label(f, text="Observaciones").grid(row=5, column=0, sticky="w", padx=4)
+        ttk.Entry(f, textvariable=self.v["obs"], width=60).grid(row=5, column=1, columnspan=3, sticky="we", padx=4)
         self.total = ttk.Label(f, text="", style="Sub.TLabel")
-        self.total.grid(row=5, column=0, columnspan=2, sticky="w", padx=4, pady=6)
-        ttk.Button(f, text="Ver impacto", command=self.cotizar).grid(row=5, column=2, sticky="e")
-        ttk.Button(f, text="Registrar donación", style="Principal.TButton", command=self.registrar).grid(row=5, column=3, padx=6)
+        self.total.grid(row=6, column=0, columnspan=2, sticky="w", padx=4, pady=6)
+        ttk.Button(f, text="Ver impacto", command=self.cotizar).grid(row=6, column=2, sticky="e")
+        ttk.Button(f, text="Enviar solicitud a Coordinación", style="Principal.TButton", command=self.registrar).grid(row=6, column=3, padx=6)
         ttk.Label(self, text="Mis donaciones").pack(anchor="w", pady=(10, 2))
         self.tabla = DataTable(self, COLS, self.sel, height=6)
         self.tabla.pack(fill="both", expand=True)
@@ -146,7 +148,10 @@ class VistaDonante(Vista):
             return error(ex)
         v["dir"].set("")
         v["obs"].set("")
-        messagebox.showinfo(cfg.APP_NAME, f"Donación #{did} registrada. ¡Gracias! Coordinación asignará un voluntario.")
+        messagebox.showinfo(cfg.APP_NAME,
+            f"¡Solicitud de donación #{did} enviada a Coordinación!\n\n"
+            f"Tu ubicación ha sido registrada:\n\"{v['dir'].get()}\"\n\n"
+            "El administrador revisará tu solicitud y asignará a un voluntario capacitado.")
         self.refrescar()
 
     def cancelar(self):
@@ -236,6 +241,8 @@ class VistaAdmin(Vista):
         nb.pack(fill="both", expand=True)
         p1 = ttk.Frame(nb, padding=8)
         nb.add(p1, text="Donaciones")
+        self.lbl_pendientes = ttk.Label(p1, text="", font=("TkDefaultFont", 10, "bold"))
+        self.lbl_pendientes.pack(anchor="w", pady=(0, 4))
         cols = COLS[:4] + [("donante", "Donante", 130), ("voluntario", "Voluntario", 120)] + COLS[4:]
         self.tabla = DataTable(p1, cols, self.sel, height=9)
         self.tabla.pack(fill="both", expand=True)
@@ -314,7 +321,13 @@ class VistaAdmin(Vista):
                     ("Vehículo", "vehiculo", False), ("Placas", "placas", False)], "Guardar", guardar, extra)
 
     def refrescar(self):
-        self.tabla.load(lg.todas_las_donaciones())
+        ds = lg.todas_las_donaciones()
+        pend = sum(1 for d in ds if d["estado"] == "PENDIENTE")
+        if pend:
+            self.lbl_pendientes.config(text=f"🔔 Solicitudes entrantes: {pend} donación(es) con ubicación esperando asignación de voluntario.", foreground="#b45309")
+        else:
+            self.lbl_pendientes.config(text="✓ No hay solicitudes pendientes de asignación.", foreground="#16a34a")
+        self.tabla.load(ds)
         self.t_vol.load(lg.voluntarios_con_carga())
         i = lg.impacto()
         self.imp.config(text=(f"Entregas completadas: {i['entregas']}\nAlimento rescatado: {i['kg']:g} kg\n"

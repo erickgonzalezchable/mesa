@@ -1,1 +1,281 @@
-{% extends 'base.html' %}{% block body %}<div class="heading"><div><h1>Panel de control</h1><p>Seguimiento de donaciones de alimentos</p></div>{% if me.rol in ['ADMIN','DONANTE'] %}<a class="btn" href="{{url_for('nueva')}}">Nueva donación</a>{% endif %}{% if me.rol=='ADMIN' %}<a class="btn alt" href="{{url_for('volunteer')}}">Nuevo voluntario</a>{% endif %}</div>{% if impact %}<div class="stats">{% for l,v in [('Entregas',impact.entregas),('Kg rescatados','%.1f'|format(impact.kg)),('Raciones',impact.raciones),('Valor estimado','$%.2f'|format(impact.valor)),('Donantes',impact.donantes),('Kg vencidos','%.1f'|format(impact.vencidas_kg))] %}<article class="card"><small>{{l}}</small><strong>{{v}}</strong></article>{% endfor %}</div>{% endif %}<section class="card"><h2>Donaciones</h2><div class="scroll"><table><tr><th>Folio</th><th>Alimento</th><th>Kg</th><th>Prioridad</th><th>Estado</th><th>Punto A</th><th>Punto B</th><th>Voluntario</th><th>Acciones</th></tr>{% for d in ds %}<tr><td>#{{d.id}}</td><td>{{d.alimento}}</td><td>{{d.cantidad_kg}}</td><td>{{d.prioridad}}</td><td>{{states[d.estado]}}<small>{{d.vence_en}}</small></td><td>{{d.zona}}<small>{{d.direccion}}</small></td><td>{{d.comedor}}<small>{{d.km_total}} km · ${{ "%.2f"|format(d.costo_traslado) }} gas</small><a target="_blank" rel="noopener" href="https://www.google.com/maps/dir/?api=1&origin={{ (d.direccion ~ ', ' ~ d.zona ~ ', Tuxtla Gutiérrez, Chis.')|urlencode }}&destination={{ (d.comedor ~ ', Tuxtla Gutiérrez, Chis.')|urlencode }}">🗺 Ruta en Maps</a></td><td>{{d.voluntario or 'Sin asignar'}} {{d.placas or ''}}</td><td class="actions">{% if me.rol=='ADMIN' and d.estado=='PENDIENTE' %}<form method="post" action="{{url_for('assign',did=d.id)}}"><button>Asignar</button></form>{% endif %}{% if me.rol=='VOLUNTARIO' and d.estado in ['ASIGNADO','INCIDENTE','EN_CAMINO'] %}{% if d.estado!='EN_CAMINO' %}<form method="post" action="{{url_for('action',did=d.id)}}"><input type="hidden" name="accion" value="iniciar"><button>Iniciar ruta</button></form>{% endif %}{% if d.estado=='EN_CAMINO' %}<form method="post" action="{{url_for('action',did=d.id)}}"><input type="hidden" name="accion" value="entregar"><button>Confirmar entrega</button></form>{% endif %}<details><summary>Reportar incidente</summary><form method="post" action="{{url_for('action',did=d.id)}}"><input type="hidden" name="accion" value="incidente"><select name="tipo">{% for t in ['Alimento en mal estado','Donante no estaba','Comedor cerrado','Dirección incorrecta','Falla del vehículo','Otro'] %}<option>{{t}}</option>{% endfor %}</select><input name="descripcion" placeholder="Descripción"><button>Enviar</button></form></details>{% endif %}{% if me.rol in ['DONANTE','ADMIN'] and d.estado in ['PENDIENTE','ASIGNADO','INCIDENTE'] %}<form method="post" action="{{url_for('cancel',did=d.id)}}"><button class="red">Cancelar</button></form>{% endif %}</td></tr>{% else %}<tr><td colspan="9">No hay donaciones para mostrar.</td></tr>{% endfor %}</table></div></section>{% if me.rol=='ADMIN' %}<section class="card"><h2>Voluntarios</h2><div class="scroll"><table><tr><th>Nombre</th><th>Vehículo</th><th>Placas</th><th>Capacidad</th><th>Frío</th><th>Carga activa</th><th>Estado</th><th>Actualizar</th></tr>{% for v in vs %}<tr><td>{{v.nombre}}</td><td>{{v.vehiculo}}</td><td>{{v.placas}}</td><td>{{v.capacidad_kg}} kg</td><td>{{'Sí' if v.refrigerado else 'No'}}</td><td>{{v.carga}}</td><td>{{v.estado}}</td><td><form method="post" action="{{url_for('volunteer_state',vid=v.id)}}"><select name="estado">{% for e in ['ACTIVO','SUSPENDIDO','BAJA'] %}<option {% if e==v.estado %}selected{% endif %}>{{e}}</option>{% endfor %}</select><button>Guardar</button></form></td></tr>{% endfor %}</table></div></section>{% endif %}{% endblock %}
+{% extends 'base.html' %}
+{% block body %}
+<div class="heading">
+  <div>
+    <h1>Panel de control</h1>
+    <p>Seguimiento de donaciones de alimentos en Tuxtla Gutiérrez</p>
+  </div>
+  {% if me.rol == 'DONANTE' %}
+  <a class="btn" href="{{ url_for('nueva') }}">➕ Solicitar Donación</a>
+  {% endif %}
+  {% if me.rol == 'ADMIN' %}
+  <a class="btn alt" href="{{ url_for('volunteer') }}">➕ Registrar Nuevo Voluntario</a>
+  {% endif %}
+</div>
+
+{% if me.rol == 'DONANTE' %}
+  {% set mis_pendientes = ds | selectattr('estado', 'equalto', 'PENDIENTE') | list %}
+  {% if mis_pendientes %}
+  <div class="card" style="border-left: 5px solid #3b82f6; background: #eff6ff; padding: 16px;">
+    <h3 style="color: #1d4ed8; margin: 0 0 6px; font-size: 17px;">⏳ Solicitud enviada a Coordinación</h3>
+    <p style="color: #1e40af; margin: 0; font-size: 14px;">
+      Tienes <strong>{{ mis_pendientes|length }}</strong> solicitud(es) de donación registrada(s) con tu ubicación actual. 
+      La Coordinación está revisando tu posición y asignará al voluntario con el vehículo adecuado. Verás la actualización aquí mismo en cuanto sea asignado.
+    </p>
+  </div>
+  {% endif %}
+{% endif %}
+
+{% if me.rol == 'ADMIN' %}
+  {% set solicitudes_pendientes = ds | selectattr('estado', 'equalto', 'PENDIENTE') | list %}
+  {% if solicitudes_pendientes %}
+  <section class="card" style="border-left: 5px solid #f59e0b; background: #fffbeb; padding: 18px;">
+    <h2 style="color: #b45309; font-size: 18px; margin: 0 0 6px;">🔔 Solicitudes entrantes de donadores ({{ solicitudes_pendientes|length }} pendientes de asignación)</h2>
+    <p style="color: #92400e; margin: 0 0 14px; font-size: 14px;">
+      Los siguientes donadores enviaron su solicitud y ubicación. Revisa su posición para asignar al voluntario correspondiente:
+    </p>
+    <div class="scroll">
+      <table>
+        <thead>
+          <tr style="background: #fef3c7;">
+            <th>Folio</th>
+            <th>Donante</th>
+            <th>Ubicación exacta (Punto A)</th>
+            <th>Alimento y Peso</th>
+            <th>Comedor (Punto B)</th>
+            <th>Recoger antes de</th>
+            <th>Acción</th>
+          </tr>
+        </thead>
+        <tbody>
+          {% for p in solicitudes_pendientes %}
+          <tr>
+            <td><strong>#{{ p.id }}</strong></td>
+            <td>
+              <strong>{{ p.donante }}</strong>
+              <small>{{ p.tel_donante or 'Sin teléfono' }}</small>
+            </td>
+            <td>
+              {{ p.zona }}<br>
+              <small style="color: #0f172a; font-weight: 600;">{{ p.direccion }}</small>
+              <a target="_blank" rel="noopener" style="font-size: 11px;"
+                 href="https://www.google.com/maps/search/?api=1&query={{ (p.direccion ~ ', ' ~ p.zona ~ ', Tuxtla Gutiérrez, Chis.')|urlencode }}">
+                📍 Ver en Maps
+              </a>
+            </td>
+            <td>
+              {{ p.alimento }}<br>
+              <small>{{ p.cantidad_kg }} kg · {{ 'Frío requerido' if p.requiere_frio else 'Sin frío' }}</small>
+            </td>
+            <td>{{ p.comedor }}</td>
+            <td>
+              {{ p.vence_en }}
+              {% if p.prioridad == 'ALTA' %}
+              <small style="color: #b91c1c; font-weight: bold;">(Prioridad ALTA)</small>
+              {% endif %}
+            </td>
+            <td class="actions">
+              <form method="post" action="{{ url_for('assign', did=p.id) }}">
+                <button style="background: #16a34a; font-weight: bold;">Asignar Voluntario</button>
+              </form>
+              <form method="post" action="{{ url_for('cancel', did=p.id) }}">
+                <button class="red" style="margin-top: 4px;">Rechazar/Cancelar</button>
+              </form>
+            </td>
+          </tr>
+          {% endfor %}
+        </tbody>
+      </table>
+    </div>
+  </section>
+  {% endif %}
+{% endif %}
+
+{% if impact %}
+<div class="stats">
+  {% for l,v in [('Entregas',impact.entregas),('Kg rescatados','%.1f'|format(impact.kg)),('Raciones',impact.raciones),('Valor estimado','$%.2f'|format(impact.valor)),('Donantes',impact.donantes),('Kg vencidos','%.1f'|format(impact.vencidas_kg))] %}
+  <article class="card">
+    <small>{{ l }}</small>
+    <strong>{{ v }}</strong>
+  </article>
+  {% endfor %}
+</div>
+{% endif %}
+
+<section class="card">
+  <h2>
+    {% if me.rol == 'DONANTE' %}Mis Solicitudes y Donaciones
+    {% elif me.rol == 'VOLUNTARIO' %}Mis Recolecciones Asignadas
+    {% else %}Historial de Donaciones
+    {% endif %}
+  </h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Folio</th>
+          <th>Alimento</th>
+          <th>Kg</th>
+          <th>Prioridad</th>
+          <th>Estado</th>
+          <th>Ubicación Donador (Punto A)</th>
+          <th>Destino (Punto B)</th>
+          <th>Voluntario</th>
+          <th>Acciones</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for d in ds %}
+        <tr>
+          <td><strong>#{{ d.id }}</strong></td>
+          <td>{{ d.alimento }}</td>
+          <td>{{ d.cantidad_kg }} kg</td>
+          <td>
+            <span style="font-weight: {{ 'bold' if d.prioridad == 'ALTA' else 'normal' }}; color: {{ '#b91c1c' if d.prioridad == 'ALTA' else 'inherit' }};">
+              {{ d.prioridad }}
+            </span>
+          </td>
+          <td>
+            {% if d.estado == 'PENDIENTE' %}
+              <span style="color: #b45309; font-weight: 600;">⏳ Solicitud enviada</span>
+              <small>Esperando voluntario</small>
+            {% elif d.estado == 'ASIGNADO' %}
+              <span style="color: #1d4ed8; font-weight: 600;">🚗 Voluntario asignado</span>
+            {% elif d.estado == 'EN_CAMINO' %}
+              <span style="color: #d97706; font-weight: 600;">🚚 En camino</span>
+            {% elif d.estado == 'ENTREGADO' %}
+              <span style="color: #15803d; font-weight: 600;">✅ Entregado</span>
+            {% elif d.estado == 'INCIDENTE' %}
+              <span style="color: #b91c1c; font-weight: 600;">⚠ Con incidente</span>
+            {% elif d.estado == 'CANCELADO' %}
+              <span style="color: #64748b;">❌ Cancelado</span>
+            {% elif d.estado == 'VENCIDO' %}
+              <span style="color: #7e22ce;">⌛ Vencido</span>
+            {% else %}
+              {{ states[d.estado] }}
+            {% endif %}
+            <small>{{ d.vence_en }}</small>
+          </td>
+          <td>
+            {{ d.zona }}<br>
+            <small style="color: #0f172a;">{{ d.direccion }}</small>
+          </td>
+          <td>
+            {{ d.comedor }}<br>
+            <small>{{ d.km_total }} km · ${{ "%.2f"|format(d.costo_traslado) }} gas</small>
+            <a target="_blank" rel="noopener" 
+               href="https://www.google.com/maps/dir/?api=1&origin={{ (d.direccion ~ ', ' ~ d.zona ~ ', Tuxtla Gutiérrez, Chis.')|urlencode }}&destination={{ (d.comedor ~ ', Tuxtla Gutiérrez, Chis.')|urlencode }}">
+              🗺 Ruta en Maps
+            </a>
+          </td>
+          <td>
+            {% if d.voluntario %}
+              <strong>{{ d.voluntario }}</strong><br>
+              <small>{{ d.placas or '' }}</small>
+            {% else %}
+              <span style="color: #94a3b8; font-style: italic;">Sin asignar aún</span>
+            {% endif %}
+          </td>
+          <td class="actions">
+            {% if me.rol == 'ADMIN' and d.estado == 'PENDIENTE' %}
+            <form method="post" action="{{ url_for('assign', did=d.id) }}">
+              <button>Asignar</button>
+            </form>
+            {% endif %}
+
+            {% if me.rol == 'VOLUNTARIO' and d.estado in ['ASIGNADO', 'INCIDENTE', 'EN_CAMINO'] %}
+              {% if d.estado != 'EN_CAMINO' %}
+              <form method="post" action="{{ url_for('action', did=d.id) }}">
+                <input type="hidden" name="accion" value="iniciar">
+                <button>Iniciar ruta</button>
+              </form>
+              {% endif %}
+              {% if d.estado == 'EN_CAMINO' %}
+              <form method="post" action="{{ url_for('action', did=d.id) }}">
+                <input type="hidden" name="accion" value="entregar">
+                <button style="background: #16a34a;">Confirmar entrega</button>
+              </form>
+              {% endif %}
+              <details style="margin-top: 4px;">
+                <summary style="font-size: 11px; cursor: pointer;">Reportar incidente</summary>
+                <form method="post" action="{{ url_for('action', did=d.id) }}" style="margin-top: 6px;">
+                  <input type="hidden" name="accion" value="incidente">
+                  <select name="tipo">
+                    {% for t in ['Alimento en mal estado', 'Donante no estaba', 'Comedor cerrado', 'Dirección incorrecta', 'Falla del vehículo', 'Otro'] %}
+                    <option>{{ t }}</option>
+                    {% endfor %}
+                  </select>
+                  <input name="descripcion" placeholder="Descripción del problema">
+                  <button style="background: #b91c1c; margin-top: 4px;">Enviar reporte</button>
+                </form>
+              </details>
+            {% endif %}
+
+            {% if me.rol in ['DONANTE', 'ADMIN'] and d.estado in ['PENDIENTE', 'ASIGNADO', 'INCIDENTE'] %}
+            <form method="post" action="{{ url_for('cancel', did=d.id) }}">
+              <button class="red">Cancelar</button>
+            </form>
+            {% endif %}
+          </td>
+        </tr>
+        {% else %}
+        <tr>
+          <td colspan="9" style="text-align: center; color: #64748b; padding: 24px;">
+            No hay solicitudes ni donaciones para mostrar.
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+
+{% if me.rol == 'ADMIN' %}
+<section class="card">
+  <h2>Voluntarios Registrados</h2>
+  <div class="scroll">
+    <table>
+      <thead>
+        <tr>
+          <th>Nombre</th>
+          <th>Vehículo</th>
+          <th>Placas</th>
+          <th>Capacidad</th>
+          <th>Frío</th>
+          <th>Carga activa</th>
+          <th>Estado</th>
+          <th>Actualizar</th>
+        </tr>
+      </thead>
+      <tbody>
+        {% for v in vs %}
+        <tr>
+          <td><strong>{{ v.nombre }}</strong></td>
+          <td>{{ v.vehiculo }}</td>
+          <td>{{ v.placas }}</td>
+          <td>{{ v.capacidad_kg }} kg</td>
+          <td>{{ 'Sí' if v.refrigerado else 'No' }}</td>
+          <td>{{ v.carga }} entrega(s)</td>
+          <td>
+            <span style="font-weight: 600; color: {{ '#16a34a' if v.estado == 'ACTIVO' else '#b91c1c' }};">
+              {{ v.estado }}
+            </span>
+          </td>
+          <td>
+            <form method="post" action="{{ url_for('volunteer_state', vid=v.id) }}">
+              <select name="estado">
+                {% for e in ['ACTIVO', 'SUSPENDIDO', 'BAJA'] %}
+                <option {% if e == v.estado %}selected{% endif %}>{{ e }}</option>
+                {% endfor %}
+              </select>
+              <button style="font-size: 11px; padding: 5px 8px;">Guardar</button>
+            </form>
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</section>
+{% endif %}
+{% endblock %}

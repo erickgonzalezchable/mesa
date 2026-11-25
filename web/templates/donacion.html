@@ -1,1 +1,117 @@
-{% extends 'base.html' %}{% block body %}<section class="card narrow"><h1>Registrar donación</h1><form method="post">{% if me.rol=='ADMIN' %}<label>Donante<select name="donante_id" required>{% for d in donors %}<option value="{{d.id}}">{{d.nombre}}</option>{% endfor %}</select></label>{% endif %}<label>Alimento<select name="alimento">{% for f in foods %}<option>{{f}}</option>{% endfor %}</select></label><label>Peso (kg)<input name="kg" type="number" min="0.1" max="150" step="0.1" required></label><label>Horas disponibles<select name="horas">{% for h in [2,4,8,12,24,48] %}<option>{{h}}</option>{% endfor %}</select></label><label>Zona<select name="zona">{% for z in zones %}<option>{{z.nombre}}</option>{% endfor %}</select></label><label>Dirección del Punto A<input name="direccion" required minlength="5"></label><label>Comedor Punto B<select name="comedor">{% for c in dining %}<option>{{c.nombre}}</option>{% endfor %}</select></label><label>Observaciones<textarea name="observaciones"></textarea></label><button>Guardar</button></form></section>{% endblock %}
+{% extends 'base.html' %}
+{% block body %}
+<section class="card narrow">
+  <h1>Solicitud de Donación de Alimento</h1>
+  
+  <div style="background: #eff6ff; border-left: 4px solid #3b82f6; padding: 12px 14px; border-radius: 6px; margin-bottom: 18px;">
+    <strong style="color: #1e40af; display: block; margin-bottom: 4px;">📍 Ubicación precisa requerida:</strong>
+    <p style="margin: 0; font-size: 13px; color: #1e3a8a;">
+      Indica con exactitud la dirección donde se recogerá el alimento o presiona <em>Obtener mi ubicación GPS</em>. 
+      Al enviar este formulario, tu solicitud llegará directamente al administrador para que revise tu ubicación y te asigne al voluntario más cercano.
+    </p>
+  </div>
+
+  <form method="post">
+    {% if me.rol == 'ADMIN' %}
+    <label>Donante
+      <select name="donante_id" required>
+        {% for d in donors %}
+        <option value="{{ d.id }}">{{ d.nombre }}</option>
+        {% endfor %}
+      </select>
+    </label>
+    {% endif %}
+
+    <label>Alimento excedente
+      <select name="alimento">
+        {% for f in foods %}
+        <option>{{ f }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Cantidad estimada (kg)
+      <input name="kg" type="number" min="0.1" max="150" step="0.1" placeholder="Ej: 15" required>
+    </label>
+
+    <label>Tiempo disponible para recogerlo antes de que caduque
+      <select name="horas">
+        {% for h in [2, 4, 8, 12, 24, 48] %}
+        <option value="{{ h }}">{{ h }} horas {% if h <= 4 %}(Prioridad ALTA){% endif %}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Zona en Tuxtla Gutiérrez
+      <select name="zona">
+        {% for z in zones %}
+        <option>{{ z.nombre }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Ubicación exacta de recolección (Punto A)
+      <input id="direccion_input" name="direccion" required minlength="5" 
+             placeholder="Ej: Av. Central Poniente #1234, entre 11 y 12 Pte, Col. Centro, Restaurante La Milpa">
+      <small style="color: #64748b; font-size: 12px; margin-top: 4px; display: block;">
+        * Escribe calle, número exterior, entrecalles, colonia y nombre del negocio o referencias claras.
+      </small>
+      <div style="margin-top: 6px; display: flex; align-items: center; gap: 8px;">
+        <button type="button" class="btn alt" onclick="detectarGPS()" style="font-size: 12px; padding: 6px 10px;">
+          📍 Obtener mi ubicación actual (GPS)
+        </button>
+        <span id="gps_msg" style="font-size: 12px; color: #2563eb;"></span>
+      </div>
+    </label>
+
+    <label>Institución o comedor destino (Punto B)
+      <select name="comedor">
+        {% for c in dining %}
+        <option>{{ c.nombre }}</option>
+        {% endfor %}
+      </select>
+    </label>
+
+    <label>Observaciones o instrucciones adicionales
+      <textarea name="observaciones" placeholder="Ej: Preguntar por el encargado en cocina, horario de atención, etc."></textarea>
+    </label>
+
+    <button type="submit" class="btn" style="width: 100%; font-size: 16px; padding: 12px; margin-top: 10px;">
+      🚀 Enviar solicitud a Coordinación
+    </button>
+  </form>
+</section>
+
+<script>
+function detectarGPS() {
+  const msg = document.getElementById('gps_msg');
+  const input = document.getElementById('direccion_input');
+  if (!navigator.geolocation) {
+    msg.textContent = 'Tu dispositivo o navegador no soporta geolocalización.';
+    msg.style.color = '#dc2626';
+    return;
+  }
+  msg.textContent = 'Detectando coordenadas...';
+  msg.style.color = '#2563eb';
+  navigator.geolocation.getCurrentPosition(
+    function(pos) {
+      const lat = pos.coords.latitude.toFixed(6);
+      const lng = pos.coords.longitude.toFixed(6);
+      const prev = input.value.trim();
+      if (prev && !prev.includes('[GPS:')) {
+        input.value = prev + ` [GPS: ${lat}, ${lng}]`;
+      } else if (!prev) {
+        input.value = `[GPS: ${lat}, ${lng}] `;
+      }
+      msg.textContent = '✓ Ubicación GPS detectada con éxito';
+      msg.style.color = '#16a34a';
+    },
+    function(err) {
+      msg.textContent = 'No se pudo obtener GPS automático. Por favor escribe tu dirección detallada.';
+      msg.style.color = '#dc2626';
+    },
+    { enableHighAccuracy: true, timeout: 8000 }
+  );
+}
+</script>
+{% endblock %}

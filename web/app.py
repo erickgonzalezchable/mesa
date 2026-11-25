@@ -86,7 +86,7 @@ def nueva():
         try:
             uid=user()["id"] if user()["rol"]=="DONANTE" else int(request.form["donante_id"])
             did=lg.registrar_donacion(uid,request.form["alimento"],request.form["kg"],request.form["horas"],request.form["zona"],request.form["direccion"],request.form.get("observaciones",""),request.form["comedor"])
-            flash(f"Donación #{did} registrada.","ok"); return redirect(url_for("panel"))
+            flash(f"¡Solicitud de donación #{did} enviada a Coordinación! Tu ubicación fue registrada; el administrador revisará la solicitud y asignará a un voluntario.","ok"); return redirect(url_for("panel"))
         except Exception as e: flash(db.friendly_error(e),"error")
     donors=db.fetch_all("SELECT id,nombre FROM usuarios WHERE rol='DONANTE' AND activo=1 ORDER BY nombre")
     return render_template("donacion.html",donors=donors)
