@@ -1,0 +1,3 @@
+# Dependencias para el portal web y despliegue en la nube
+Flask>=3.0,<4.0
+gunicorn>=21.0.0
